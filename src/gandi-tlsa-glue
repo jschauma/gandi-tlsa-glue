@@ -1,0 +1,166 @@
+#! /bin/sh
+
+set -e
+
+DONT=""
+INTYPE="cert"
+PORT="443"
+PROGNAME="${0##*/}"
+TTL="3600"
+VERBOSITY=0
+
+###
+### Functions
+###
+
+processCert() {
+	local cert="${1}"
+
+	verbose "Processing ${INTYPE} '${cert}'..." 1
+
+	cmd="x509"
+	if [ x"${INTYPE}" = x"csr" ]; then
+		cmd="req"
+	fi
+
+	for name in $(<"${cert}" openssl ${cmd} -text -noout | grep DNS: | sed -e 's/DNS://g' -e 's/,/ /g'); do
+		verbose "Creating TLSA record for SAN '${name}'..." 2
+		short=$(echo ${name} | sed -e 's/\(.*\)\..*\..*/\1/')
+		domain=${name##${short}.}
+		if [ x"${short}" = x"${name}" ]; then
+			short=""
+			domain="${name}"
+		else
+			short=".${short}"
+		fi
+		rrset_name="_${PORT}._tcp${short}"
+		keycmd="x509 -outform DER"
+		if [ x"${INTYPE}" = x"csr" ]; then
+			keycmd="req -noout -pubkey | openssl rsa -pubin -pubout 2>/dev/null"
+		fi
+		sha256=$(cat "${cert}" | eval "openssl ${keycmd} -outform DER" | \
+				openssl sha256 | awk '{print toupper($NF);}')
+
+		rrset_value="3 1 1 ${sha256}"
+		# We want to avoid a false negative on
+		# a cached negative by the local
+		# resolver, so we dig @ the auth.
+		auth=$(dig +short "${domain}" "ns" | head -1)
+		dig_out=$(dig ${auth+@${auth}} +short "${rrset_name}.${domain}" "tlsa")
+		found=$(echo "${dig_out}" | sed -e 's/^. . . //' | tr '[a-z]' '[A-Z]' | tr -d ' ')
+		for f_sum in ${found}; do
+			if [ x"${f_sum}" = x"${sha256}" ]; then
+				echo "TLSA record with SHA256 '${sha256}' already exists." >&2
+				continue 2
+			fi
+			rrset_value="${rrset_value}\", \"3 0 1 ${f_sum}"
+		done
+
+		if [ -n "${dig_out}" ]; then
+			# Gandi's API does not allow adding
+			# multiple records other than as an
+			# array of values, so we first need to
+			# delete the old entry.
+			verbose "Removing old TLSA record '${rrset_name}' from domain '${domain}'..." 3
+			${DONT} curl -s -X DELETE -H "Content-Type: application/json"	\
+				-H "X-Api-Key: ${GANDI_API_KEY}"					\
+				https://dns.api.gandi.net/api/v5/domains/${domain}/records/${rrset_name}/TLSA
+		fi
+
+		verbose "Adding TLSA record '${rrset_name} IN ${TTL} ${rrset_value}' in domain '${domain}'..." 3
+		curl_out="$(${DONT} curl -s -X POST -H "Content-Type: application/json"	\
+			-H "X-Api-Key: ${GANDI_API_KEY}"				\
+			-d "{\"rrset_name\": \"${rrset_name}\",
+				\"rrset_type\": \"TLSA\",
+				\"rrset_ttl\": ${TTL},
+				\"rrset_values\": [\"${rrset_value}\"]}"		\
+			https://dns.api.gandi.net/api/v5/domains/${domain}/records)"
+		if [ -n "${DONT}" ]; then
+			echo "${curl_out}"
+		fi
+	done
+}
+
+usage() {
+	cat <<EOH
+Usage: ${PROGNAME} [-dhv] [-i cert|csr] [-p port] [-t ttl] certfile ...
+	-d           don't do anything, just show what would be done
+	-h           print this help and exit
+	-i cert|csr  specify input type (default: cert)
+	-p port      specify port (default: 443)
+	-t ttl       specify the TTL (default: 3600)
+	-v           be verbose
+EOH
+}
+
+verbose() {
+	local readonly msg="${1}"
+	local level="${2:-1}"
+	local i=0
+
+	if [ ${level} -le ${VERBOSITY} ]; then
+		while [ ${i} -lt ${level} ]; do
+			printf "=" >&2
+			i=$(( ${i} + 1 ))
+		done
+		echo "> ${msg}" >&2
+	fi
+}
+
+###
+### Main
+###
+
+while getopts 'dhi:p:t:v' opt; do
+	case "${opt}" in
+		d)
+			DONT="echo"
+		;;
+		h\?)
+			usage
+			exit 0
+			# NOTREACHED
+		;;
+		i)
+			if [ "${OPTARG}" != "cert" -a "${OPTARG}" != "csr" ]; then
+				echo "Invalid argument '${OPTARG}' for '-i'." >&2
+				echo "Acceptable values: cert, csr" >&2
+				exit 1
+				# NOTREACHED
+			fi
+			INTYPE="${OPTARG}"
+		;;
+		p)
+			PORT="${OPTARG}"
+		;;
+		t)
+			TTL="${OPTARG}"
+		;;
+		v)
+			VERBOSITY=$(( ${VERBOSITY} + 1 ))
+		;;
+		*)
+			usage
+			exit 1
+			# NOTREACHED
+		;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+if [ $# -lt 1 ]; then
+	usage
+	exit 1
+	# NOTREACHED
+fi
+
+if [ -z "${GANDI_API_KEY}" ]; then
+	echo "GANDI_API_KEY not set in the environment." >&2
+	echo "Please generate an API key at https://account.gandi.net/ and" >&2
+	echo "export GANDI_API_KEY=<your new API key>" >&2
+	exit 1
+fi
+
+for cert in $@; do
+	processCert "${cert}"
+done
