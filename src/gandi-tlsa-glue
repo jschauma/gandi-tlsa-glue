@@ -54,7 +54,7 @@ processCert() {
 				echo "TLSA record with SHA256 '${sha256}' already exists." >&2
 				continue 2
 			fi
-			rrset_value="${rrset_value}\", \"3 0 1 ${f_sum}"
+			rrset_value="${rrset_value}\", \"$(echo "${dig_out}" | sed -e 's/\(.*\) \(.*\)/\1\2/')"
 		done
 
 		if [ -n "${dig_out}" ]; then
