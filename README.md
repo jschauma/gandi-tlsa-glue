@@ -1,3 +1,5 @@
+[New Adventures in DNSSEC and DANE](https://www.netmeister.org/blog/dnssec-dane.html)
+
 # gandi-tlsa-glue -- add TLSA DNS records to your Gandi DNS
 ```
 NAME
