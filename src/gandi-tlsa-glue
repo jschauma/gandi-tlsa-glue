@@ -34,11 +34,12 @@ processCert() {
 			short=".${short}"
 		fi
 		rrset_name="_${PORT}._tcp${short}"
-		keycmd="x509 -outform DER"
+		keycmd="x509"
 		if [ x"${INTYPE}" = x"csr" ]; then
-			keycmd="req -noout -pubkey | openssl rsa -pubin -pubout 2>/dev/null"
+			keycmd="req"
 		fi
-		sha256=$(cat "${cert}" | eval "openssl ${keycmd} -outform DER" | \
+		sha256=$(<"${cert}" openssl ${keycmd} -noout -pubkey -outform DER |	\
+				openssl rsa -pubin -pubout -outform DER 2>/dev/null |		\
 				openssl sha256 | awk '{print toupper($NF);}')
 
 		rrset_value="3 1 1 ${sha256}"
