@@ -51,7 +51,7 @@ EXAMPLES
      for use with STARTTLS in an SMTP context (i.e., on port 25) with a TTL of
      24 hours:
 
-	   gandi-tlsa-glue -v -v -v -i csr -t 86400 -p 25 example.com.csr
+	   gandi-tlsa-glue -v -v -v -i csr -t 86400 -p 25 smtp.example.com.csr
 
 EXIT STATUS
      The gandi-tlsa-glue utility exits 0 on success, and >0 if an error
