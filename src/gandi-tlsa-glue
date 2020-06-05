@@ -4,6 +4,7 @@ set -e
 
 DONT=""
 INTYPE="cert"
+NAME="*"
 PORT="443"
 PROGNAME="${0##*/}"
 TTL="3600"
@@ -24,6 +25,11 @@ processCert() {
 	fi
 
 	for name in $(<"${cert}" openssl ${cmd} -text -noout | grep DNS: | sed -e 's/DNS://g' -e 's/,/ /g'); do
+		if [ x"${NAME}" != x"${name}" ] && [ x"${NAME}" != x"*" ]; then
+			verbose "Skipping SAN '${name}'..." 2
+			continue
+		fi
+
 		verbose "Creating TLSA record for SAN '${name}'..." 2
 		short=$(echo ${name} | sed -e 's/\(.*\)\..*\..*/\1/')
 		domain=${name##${short}.}
@@ -84,10 +90,11 @@ processCert() {
 
 usage() {
 	cat <<EOH
-Usage: ${PROGNAME} [-dhv] [-i cert|csr] [-p port] [-t ttl] certfile ...
+Usage: ${PROGNAME} [-dhv] [-i cert|csr] [-n name] [-p port] [-t ttl] certfile ...
 	-d           don't do anything, just show what would be done
 	-h           print this help and exit
 	-i cert|csr  specify input type (default: cert)
+	-n name      only add records for this name
 	-p port      specify port (default: 443)
 	-t ttl       specify the TTL (default: 3600)
 	-v           be verbose
@@ -112,7 +119,7 @@ verbose() {
 ### Main
 ###
 
-while getopts 'dhi:p:t:v' opt; do
+while getopts 'dhi:n:p:t:v' opt; do
 	case "${opt}" in
 		d)
 			DONT="echo"
@@ -130,6 +137,9 @@ while getopts 'dhi:p:t:v' opt; do
 				# NOTREACHED
 			fi
 			INTYPE="${OPTARG}"
+		;;
+		n)
+			NAME="${OPTARG}"
 		;;
 		p)
 			PORT="${OPTARG}"
@@ -162,6 +172,6 @@ if [ -z "${GANDI_API_KEY}" ]; then
 	exit 1
 fi
 
-for cert in $@; do
+for cert in "$@"; do
 	processCert "${cert}"
 done

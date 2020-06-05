@@ -6,7 +6,8 @@ NAME
      gandi-tlsa-glue -- add TLSA records to Gandi domains
 
 SYNOPSIS
-     gandi-tlsa-glue [-dhv] [-i cert|csr] [-p port] [-t ttl] file ...
+     gandi-tlsa-glue [-dhv] [-i cert|csr] [-n name] [-p port] [-t ttl]
+		     file ...
 
 DESCRIPTION
      The gandi-tlsa-glue tool allows you to add TLSA records to your Gandi
@@ -21,6 +22,11 @@ OPTIONS
 
      -i cert|csr  Specify whether the input file is a certificate or a CSR.
 		  If not specified, default to 'cert'.
+
+     -n name	  Only add records for name.
+
+		  (By default, gandi-tlsa-glue will add TLSA records for all
+		  SANs found in the cert.)
 
      -p port	  The port for which to add the record.	 If not specified,
 		  defaults to 443.

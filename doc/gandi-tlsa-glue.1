@@ -1,5 +1,5 @@
 .\"
-.Dd May 08, 2019
+.Dd June 04, 2020
 .Dt gandi-tlsa-glue 1
 .Os
 .Sh NAME
@@ -9,6 +9,7 @@
 .Nm
 .Op Fl dhv
 .Op Fl i Ar cert|csr
+.Op Fl n Ar name
 .Op Fl p Ar port
 .Op Fl t Ar ttl
 .Ar
@@ -29,6 +30,13 @@ Display help and exit.
 Specify whether the input file is a certificate or
 a CSR.
 If not specified, default to 'cert'.
+.It Fl n Ar name
+Only add records for
+.Ar name .
+.Pp
+(By default,
+.Nm
+will add TLSA records for all SANs found in the cert.)
 .It Fl p Ar port
 The port for which to add the record.
 If not specified, defaults to 443.
