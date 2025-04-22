@@ -3,11 +3,10 @@
 # gandi-tlsa-glue -- add TLSA DNS records to your Gandi DNS
 ```
 NAME
-     gandi-tlsa-glue -- add TLSA records to Gandi domains
+     gandi-tlsa-glue - add TLSA records to Gandi domains
 
 SYNOPSIS
-     gandi-tlsa-glue [-dhv] [-i cert|csr] [-n name] [-p port] [-t ttl]
-		     file ...
+     gandi-tlsa-glue [-dhv] [-i cert|csr] [-n name] [-p port] [-t ttl] file ...
 
 DESCRIPTION
      The gandi-tlsa-glue tool allows you to add TLSA records to your Gandi
@@ -20,8 +19,8 @@ OPTIONS
 
      -h		  Display help and exit.
 
-     -i cert|csr  Specify whether the input file is a certificate or a CSR.
-		  If not specified, default to 'cert'.
+     -i cert|csr  Specify whether the input file is a certificate or a CSR.  If
+		  not specified, default to 'cert'.
 
      -n name	  Only add records for name.
 
@@ -37,10 +36,10 @@ OPTIONS
      -v		  Be verbose.  Can be specified multiple times.
 
 DETAILS
-     gandi-tlsa-glue expects input files to be x509 certificates in PEM for-
-     mat.  For each input file, it will then extract all SANs, and for each
-     SAN generate a TLSA record and attempt to add the record to the Gandi DNS
-     zone for the domain the SAN is in.
+     gandi-tlsa-glue expects input files to be x509 certificates in PEM format.
+     For each input file, it will then extract all SANs, and for each SAN
+     generate a TLSA record and attempt to add the record to the Gandi DNS zone
+     for the domain the SAN is in.
 
      The TLSA record will be of type "3 1 1"; that is, it will specify the
      SHA-256 hash of the Subject Public Key of a Domain Issued Certificate.
@@ -48,28 +47,28 @@ DETAILS
 EXAMPLES
      The following invocations illustrate common usage of this tool.
 
-     To generate TLSA records for (the default) port 443 for all names found
-     in the certificate 'example.com.crt':
+     To generate TLSA records for (the default) port 443 for all names found in
+     the certificate 'example.com.crt':
 
 	   gandi-tlsa-glue example.com.crt
 
-     To verbosely generate TLSA records from the CSR for 'smtp.example.com'
-     for use with STARTTLS in an SMTP context (i.e., on port 25) with a TTL of
-     24 hours:
+     To verbosely generate TLSA records from the CSR for 'smtp.example.com' for
+     use with STARTTLS in an SMTP context (i.e., on port 25) with a TTL of 24
+     hours:
 
 	   gandi-tlsa-glue -v -v -v -i csr -t 86400 -p 25 smtp.example.com.csr
 
 EXIT STATUS
-     The gandi-tlsa-glue utility exits 0 on success, and >0 if an error
-     occurs.
+     The gandi-tlsa-glue utility exits 0 on success, and >0 if an error occurs.
 
 ENVIRONMENT
      The following environment variables affect the execution of this tool:
 
-     GANDI_API_KEY  The API key to access the Gandi API.
+     GANDI_ACCESS_TOKEN	 The API access token for the Gandi API.
 
-		    You can retrieve this key from the "Security" section in
-		    the account admin panel at https://account.gandi.net/.
+			 You can retrieve this key from the "Personal Access
+			 Token (PAT)" section in the account admin panel at
+			 https://account.gandi.net/.
 
 SEE ALSO
      openssl_req(1), openssl_rsa(1), openssl_x509(1),

@@ -1,6 +1,6 @@
 #! /bin/sh
 
-set -e
+#set -e
 
 DONT=""
 INTYPE="cert"
@@ -45,29 +45,45 @@ processCert() {
 			keycmd="req"
 		fi
 
-		sha256=$(<"${cert}" openssl ${keycmd} -noout -pubkey -outform DER |    \
+		nextKey="${cert%.*}.key.next"
+		if [ -f "${nextKey}" ]; then
+			verbose "Creating TLSA record for '${domain}' next key..." 2
+			nextsha256=$(<"${nextKey}" openssl pkey -pubout -outform DER |  \
+				openssl sha256 | awk '{print toupper($NF);}')
+		fi
+		sha256=$(<"${cert}" openssl ${keycmd} -noout -pubkey |    	\
 				openssl pkey -pubin -pubout -outform DER 2>/dev/null | \
 				openssl sha256 | awk '{print toupper($NF);}')
 
-		updateRecord "${sha256}" "${domain}"
+		updateRecord "${sha256}" "${domain}" "${nextsha256}"
 
-		nextKey="${cert%.*}.key.next"
-		if [ -f "${nextKey}" ]; then
-			sha256=$(<"${nextKey}" openssl pkey -pubout -outform DER |  \
-				openssl sha256 | awk '{print toupper($NF);}')
-			updateRecord "${sha256}" "${domain}"
-		fi
 	done
+}
+
+patchRecord() {
+	local add_or_remove="${1}"
+	local domain="${2}"
+	local rrset_name="${3}"
+	local rr_type="${4}"
+	local value="${5}"
+
+	verbose "Patching ${rr_type} record ${rr}.${domain} to ${add_or_remove} ${value}..." 4
+	curl_out="$(${DONT} curl -s -X PATCH \
+				-H "Content-Type: application/json"	\
+				-H "Authorization: Bearer ${GANDI_ACCESS_TOKEN}"	\
+				-d "{ \"${add_or_remove}_rrset_values\" : [\"${value}\"] }"	\
+				https://api.gandi.net/v5/livedns/domains/${domain}/records/${rrset_name}/${rr_type})"
+	if [ -n "${DONT}" ]; then
+		echo "${curl_out}"
+	fi
 }
 
 updateRecord() {
 	local sha256="${1}"
 	local domain="${2}"
+	local nextsha256="${3}"
 
-	rrset_value="3 1 1 ${sha256}"
-	verbose "TLSA record '${rrset_value}'..." 3
-	# We want to avoid a false negative on
-	# a cached negative by the local
+	# We want to avoid a false negative on a cached negative by the local
 	# resolver, so we dig @ the auth.
 	auth=$(dig +short "${domain}" "ns" | head -1)
 	dig_out=$(dig ${auth+@${auth}} +short "${rrset_name}.${domain}" "tlsa")
@@ -75,32 +91,20 @@ updateRecord() {
 	for f_sum in ${found}; do
 		if [ x"${f_sum}" = x"${sha256}" ]; then
 			echo "TLSA record with SHA256 '${sha256}' already exists." >&2
-			return
+			sha256="x"
+		elif [ -n "${nextsha256}" ] && [ x"${f_sum}" = x"${nextsha256}" ]; then
+			echo "TLSA record with next SHA256 '${nextsha256}' already exists." >&2
+			nextsha256="x"
+		else
+			patchRecord "remove" "${domain}" "${rrset_name}" "TLSA" "${f_sym}"
 		fi
-		rrset_value="${rrset_value}\", \"$(echo "${dig_out}" | sed -e 's/\(.*\) \(.*\)/\1\2/')"
 	done
 
-	if [ -n "${dig_out}" ]; then
-		# Gandi's API does not allow adding
-		# multiple records other than as an
-		# array of values, so we first need to
-		# delete the old entry.
-		verbose "Removing old TLSA record '${rrset_name}' from domain '${domain}'..." 3
-		${DONT} curl -s -X DELETE -H "Content-Type: application/json"	\
-			-H "X-Api-Key: ${GANDI_API_KEY}"					\
-			https://dns.api.gandi.net/api/v5/domains/${domain}/records/${rrset_name}/TLSA
+	if [ x"${sha256}" != x"x" ]; then
+		patchRecord "add" "${domain}" "${rrset_name}" "TLSA" "3 1 1 ${sha256}"
 	fi
-
-	verbose "Adding TLSA record '${rrset_name} IN ${TTL} ${rrset_value}' in domain '${domain}'..." 3
-	curl_out="$(${DONT} curl -s -X POST -H "Content-Type: application/json"	\
-		-H "X-Api-Key: ${GANDI_API_KEY}"				\
-		-d "{\"rrset_name\": \"${rrset_name}\",
-			\"rrset_type\": \"TLSA\",
-			\"rrset_ttl\": ${TTL},
-			\"rrset_values\": [\"${rrset_value}\"]}"		\
-		https://dns.api.gandi.net/api/v5/domains/${domain}/records)"
-	if [ -n "${DONT}" ]; then
-		echo "${curl_out}"
+	if [ x"${nextsha256}" != x"x" ]; then
+		patchRecord "add" "${domain}" "${rrset_name}" "TLSA" "3 1 1 ${nextsha256}"
 	fi
 }
 
@@ -181,10 +185,10 @@ if [ $# -lt 1 ]; then
 	# NOTREACHED
 fi
 
-if [ -z "${GANDI_API_KEY}" -a -z "${DONT}" ]; then
-	echo "GANDI_API_KEY not set in the environment." >&2
-	echo "Please generate an API key at https://account.gandi.net/ and" >&2
-	echo "export GANDI_API_KEY=<your new API key>" >&2
+if [ -z "${GANDI_ACCESS_TOKEN}" -a -z "${DONT}" ]; then
+	echo "GANDI_ACCESS_TOKEN not set in the environment." >&2
+	echo "Please generate an API key at https://admin.gandi.net/organizations/account/pat and" >&2
+	echo "export GANDI_ACCESS_TOKEN=<your new API key>" >&2
 	exit 1
 fi
 

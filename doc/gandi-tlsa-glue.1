@@ -1,5 +1,5 @@
 .\"
-.Dd June 04, 2020
+.Dd April 22, 2025
 .Dt gandi-tlsa-glue 1
 .Os
 .Sh NAME
@@ -80,12 +80,13 @@ gandi-tlsa-glue -v -v -v -i csr -t 86400 -p 25 smtp.example.com.csr
 .Ex -std 
 .Sh ENVIRONMENT
 The following environment variables affect the execution of this tool:
-.Bl -tag -width GANDI_API_KEY
-.It Ev GANDI_API_KEY
-The API key to access the Gandi API.
+.Bl -tag -width GANDI_ACCESS_TOKEN
+.It Ev GANDI_ACCESS_TOKEN
+The API access token for the Gandi API.
 .Pp
-You can retrieve this key from the "Security" section
-in the account admin panel at https://account.gandi.net/.
+You can retrieve this key from the "Personal Access
+Token (PAT)" section in the account admin panel at
+https://account.gandi.net/.
 .El
 .Sh SEE ALSO
 .Xr openssl_req 1 ,
