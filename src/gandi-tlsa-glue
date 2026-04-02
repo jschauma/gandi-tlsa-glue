@@ -89,6 +89,7 @@ updateRecord() {
 	dig_out=$(dig ${auth+@${auth}} +short "${rrset_name}.${domain}" "tlsa")
 	found=$(echo "${dig_out}" | sed -e 's/^. . . //' | tr '[a-z]' '[A-Z]' | tr -d ' ')
 	for f_sum in ${found}; do
+		verbose "Checking ${f_sum} (${nextsha256})..." 3
 		if [ x"${f_sum}" = x"${sha256}" ]; then
 			echo "TLSA record with SHA256 '${sha256}' already exists." >&2
 			sha256="x"
@@ -96,7 +97,7 @@ updateRecord() {
 			echo "TLSA record with next SHA256 '${nextsha256}' already exists." >&2
 			nextsha256="x"
 		else
-			patchRecord "remove" "${domain}" "${rrset_name}" "TLSA" "${f_sym}"
+			patchRecord "remove" "${domain}" "${rrset_name}" "TLSA" "3 1 1 ${f_sum}"
 		fi
 	done
 
